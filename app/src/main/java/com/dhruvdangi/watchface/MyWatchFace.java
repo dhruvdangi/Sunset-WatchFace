@@ -22,7 +22,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -35,7 +34,6 @@ import android.os.Message;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
 import android.text.format.Time;
-import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
@@ -88,14 +86,21 @@ public class MyWatchFace extends CanvasWatchFaceService {
 
         Time mTime;
 
-        float mTimeX;
-        float mTimeY;
+        float mTimeX, mTimeY;
+        float mTextX, mTextY;
+        float mDialRadius;
+        float mSunRadius;
+        float mMoonRadius;
         float[] colorOffset;
         int[] colorGradient;
-        Paint dialPaint;
+        Paint mDialPaint;
+        Paint mSunPaint;
+        Paint mMoonPaint;
         RectF mDialRectF;
-        int mTextX, mTextY;
-        int mTextSize = 35;
+        RectF mSunRectF;
+        RectF mMoonRectF;
+        int mTextSize = 25;
+        float SCALING_FACTOR = 0.90f;
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
          * disable anti-aliasing in ambient mode.
@@ -128,13 +133,22 @@ public class MyWatchFace extends CanvasWatchFaceService {
             mSunsetTimePaint.setTextSize(mTextSize);
             mSunsetTimePaint.setTypeface(font);
 
-            colorOffset = new float[]{0, 0.10f, 0.25f, 0.40f, 0.50f, 0.87f, 1f};
+            colorOffset = new float[]{0, 0.20f, 0.25f, 0.36f, 0.50f, 0.87f, 1f};
             colorGradient = getResources().getIntArray(R.array.day_colors);
-            dialPaint = new Paint();
-            dialPaint.setStyle(Paint.Style.STROKE);
-            dialPaint.setColor(Color.CYAN);
-            dialPaint.setStrokeWidth(3);
-            dialPaint.setAntiAlias(true);
+            mDialPaint = new Paint();
+            mDialPaint.setStyle(Paint.Style.STROKE);
+            mDialPaint.setFlags(Paint.ANTI_ALIAS_FLAG);
+            mDialPaint.setStrokeWidth(3);
+            mSunPaint = new Paint();
+            mSunPaint.setStyle(Paint.Style.STROKE);
+            mSunPaint.setFlags(Paint.ANTI_ALIAS_FLAG);
+            mSunPaint.setStrokeWidth(3);
+            mSunPaint.setColor(getResources().getColor(R.color.sun_color));
+            mMoonPaint = new Paint();
+            mMoonPaint.setStyle(Paint.Style.STROKE);
+            mMoonPaint.setFlags(Paint.ANTI_ALIAS_FLAG);
+            mMoonPaint.setStrokeWidth(3);
+            mMoonPaint.setColor(getResources().getColor(R.color.moon_color));
 
         }
 
@@ -236,12 +250,13 @@ public class MyWatchFace extends CanvasWatchFaceService {
             // Draw the background.
             canvas.drawRect(0, 0, bounds.width(), bounds.height(), mBackgroundPaint);
 
-            String time = String.format("%d:%02d", mTime.hour, mTime.minute);
+            String time;
+            time = mTime.hour > 12 ? String.format("%d:%02d pm", mTime.hour - 12, mTime.minute) : String.format("%d:%02d am", mTime.hour, mTime.minute);
 
             // Draw the dial.
             if (mDialRectF == null)
             setDimensions(bounds.height(), bounds.width(), time);
-            canvas.drawArc(mDialRectF, 0, 360, true, dialPaint);
+            canvas.drawArc(mDialRectF, 0, 360, true, mDialPaint);
 
             // Draw H:MM in ambient mode or H:MM:SS in interactive mode.
             mTime.setToNow();
@@ -249,7 +264,19 @@ public class MyWatchFace extends CanvasWatchFaceService {
             canvas.drawText(time, mTimeX, mTimeY, mTimePaint);
 
             // Draw sunset time
-            canvas.drawText("9 hours until sunset", mTextX, mTextY, mSunsetTimePaint);
+            canvas.drawText(getSunsetText(), mTextX, mTextY, mSunsetTimePaint);
+            canvas.drawArc(mSunRectF, 0, 360, true, mSunPaint);
+            canvas.drawArc(mMoonRectF, 0, 360, true, mMoonPaint);
+
+            //Draw Sunset ticks
+//            for (int tickIndex = 0; tickIndex < 12; tickIndex++) {
+//                float tickRot = (float) (tickIndex * Math.PI * 2 / 12);
+//                float outerX = (float) Math.sin(tickRot) * mDialRadius;
+//                float outerY = (float) -Math.cos(tickRot) * mDialRadius;
+//                mSunRectF = new RectF(outerX - mSunRadius, outerY - mSunRadius, outerX + mSunRadius, outerY + mSunRadius);
+//                canvas.drawArc(mSunRectF, 0, 360, true, mSunPaint);
+//            }
+
         }
 
         /**
@@ -285,47 +312,76 @@ public class MyWatchFace extends CanvasWatchFaceService {
         }
 
         private void setDimensions(int height, int width, String time) {
-            int radius, top, bottom, right, left;
-            int offsetX = 10;
-            int offsetY = 30;
-            Rect textBounds = new Rect();
-            mSunsetTimePaint.measureText("Hello");
-            mSunsetTimePaint.getTextBounds(getSunsetText(), 0, getSunsetText().length(),textBounds);
-            int dialHeight = height - textBounds.height();
-            if (dialHeight >= width) {
-                Log.d("qwerty","yo");
-                offsetY += (dialHeight - width) / 2;
-                radius = (width - offsetX * 2) / 2;
-                top = offsetY;
-                bottom = (radius * 2) + offsetY;
-                right = radius * 2;
-                left = offsetX;
-            } else {
-                Log.d("qwerty","noooo");
-                radius = (dialHeight - offsetY * 2) / 2;
-                offsetX += (width - radius * 2) / 2;
-                top = offsetY;
-                bottom = offsetY + radius * 2;
-                right = offsetX + (radius * 2);
-                left = offsetX;
-            }
+            float mDialRadius, centerX, centerY;
+            mDialRadius = height >= width ? width * SCALING_FACTOR / 2 : height * SCALING_FACTOR / 2;
+            mSunRadius = mDialRadius * 0.05f;
+            mMoonRadius = mDialRadius * 0.05f;
+            centerX = width / 2;
+            centerY = height / 2;
+            Shader shader = new SweepGradient(centerX,centerY, colorGradient, colorOffset);
+            mDialPaint.setShader(shader);
+            mDialRectF =  new RectF(centerX - mDialRadius, centerY - mDialRadius, centerX + mDialRadius, centerY + mDialRadius);
+            Rect timeBounds = new Rect();
+            mTimePaint.getTextBounds(time, 0, time.length(), timeBounds);
+            mTimeX = centerX - (timeBounds.width() / 2);
+            mTimeY = centerY + (timeBounds.height() / 2);
+            Rect sunsetBounds = new Rect();
+            mSunsetTimePaint.getTextBounds(getSunsetText(), 0, getSunsetText().length(), sunsetBounds);
+            mTextX = centerX - (sunsetBounds.width() / 2);
+            mTextY = centerY + timeBounds.height() + sunsetBounds.height();
 
-            Shader shader = new SweepGradient(offsetX + radius, offsetY + radius, colorGradient, colorOffset);
-            dialPaint.setShader(shader);
-            mDialRectF =  new RectF(left, top, right, bottom);
-            mTextX = (width - textBounds.width()) / 2;
-            mTextY = height;
-            mTimePaint.getTextBounds(time, 0, time.length(), textBounds);
-            mTimeX = offsetX + radius - (textBounds.width() / 2);
-            mTimeY = offsetY + radius + (textBounds.height() / 2);
+            float outerX = centerX + (float) Math.sin(2) * mDialRadius;
+            float outerY = centerY + (float) -Math.cos(2) * mDialRadius;
+            mSunRectF = new RectF(outerX - mSunRadius, outerY - mSunRadius, outerX + mSunRadius, outerY + mSunRadius);
 
-            Log.d("WatchText", "width:"+width + " TextWidth:" + textBounds.width());
+            outerX = centerX - (float) Math.sin(2) * mDialRadius;
+            outerY = centerY - (float) -Math.cos(2) * mDialRadius;
+            mMoonRectF = new RectF(outerX - mMoonRadius, outerY - mMoonRadius, outerX + mMoonRadius, outerY + mMoonRadius);
+
         }
 
+//        private void setDimensions(int height, int width, String time) {
+//            int mDialRadius, top, bottom, right, left;
+//            int offsetX = 10;
+//            int offsetY = 30;
+//            Rect textBounds = new Rect();
+//            mSunsetTimePaint.measureText("Hello");
+//            mSunsetTimePaint.getTextBounds(getSunsetText(), 0, getSunsetText().length(),textBounds);
+//            int dialHeight = height - textBounds.height();
+//            if (dialHeight >= width) {
+//                Log.d("qwerty","yo");
+//                offsetY += (dialHeight - width) / 2;
+//                mDialRadius = (width - offsetX * 2) / 2;
+//                top = offsetY;
+//                bottom = (mDialRadius * 2) + offsetY;
+//                right = mDialRadius * 2;
+//                left = offsetX;
+//            } else {
+//                Log.d("qwerty","noooo");
+//                mDialRadius = (dialHeight - offsetY * 2) / 2;
+//                offsetX += (width - mDialRadius * 2) / 2;
+//                top = offsetY;
+//                bottom = offsetY + mDialRadius * 2;
+//                right = offsetX + (mDialRadius * 2);
+//                left = offsetX;
+//            }
+//
+//            Shader shader = new SweepGradient(offsetX + mDialRadius, offsetY + mDialRadius, colorGradient, colorOffset);
+//            mDialPaint.setShader(shader);
+//            mDialRectF =  new RectF(left, top, right, bottom);
+//            mTextX = (width - textBounds.width()) / 2;
+//            mTextY = height;
+//            mTimePaint.getTextBounds(time, 0, time.length(), textBounds);
+//            mTimeX = offsetX + mDialRadius - (textBounds.width() / 2);
+//            mTimeY = offsetY + mDialRadius + (textBounds.height() / 2);
+//
+//            Log.d("WatchText", "width:"+width + " TextWidth:" + textBounds.width());
+//        }
+
         public String getSunsetText() {
-            Location location = new Location("39.9522222", "-75.1641667");
-            SunriseSunsetCalculator calculator = new SunriseSunsetCalculator(location, "America/New_York");
-            return calculator.getOfficialSunriseForDate(Calendar.getInstance());
+            Location location = new Location("28.4211", "77.3078");
+            SunriseSunsetCalculator calculator = new SunriseSunsetCalculator(location, "India/Haryana");
+            return calculator.getOfficialSunriseForDate(Calendar.getInstance()) + " until sunset";
         }
     }
 

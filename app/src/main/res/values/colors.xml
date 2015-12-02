@@ -2,13 +2,15 @@
 <resources>
     <color name="digital_background">#000000</color>
     <color name="digital_text">#ffffff</color>
+    <color name="sun_color">#B71C1C</color>
+    <color name="moon_color">#00BCD4</color>
     <array name="day_colors">
-        <item>#FFEB3B</item>
-        <item>#F44336</item>
+        <item>#FFB300</item>
+        <item>#B71C1C</item>
         <item>#311B92</item>
-        <item>#FFEB3B</item>
+        <item>#FFD54F</item>
         <item>#00BCD4</item>
         <item>#ffffff</item>
-        <item>#FFEB3B</item>
+        <item>#FFB300</item>
     </array>
 </resources>
