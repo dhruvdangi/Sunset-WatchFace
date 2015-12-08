@@ -2,15 +2,20 @@
 <resources>
     <color name="digital_background">#000000</color>
     <color name="digital_text">#ffffff</color>
-    <color name="sun_color">#B71C1C</color>
-    <color name="moon_color">#00BCD4</color>
+    <color name="sun_color">#FF1744</color>
+    <color name="sun_glow_color">#70FF1744</color>
+    <color name="moon_color">#00E5FF</color>
+    <color name="moon_glow_color">#7000E5FF</color>
     <array name="day_colors">
-        <item>#FFB300</item>
-        <item>#B71C1C</item>
-        <item>#311B92</item>
-        <item>#FFD54F</item>
-        <item>#00BCD4</item>
-        <item>#ffffff</item>
-        <item>#FFB300</item>
+        <item>#FFC400</item>
+        <item>#FF1744</item>
+        <item>#6200EA</item>
+        <item>#FF1744</item>
+        <item>#FFC400</item>
+        <item>#00E5FF</item>
+        <item>#FFFFFF</item>
+        <item>#00E5FF</item>
+        <item>#FFC400</item>
+
     </array>
 </resources>

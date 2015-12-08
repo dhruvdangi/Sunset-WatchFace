@@ -41,6 +41,7 @@ import com.luckycatlabs.sunrisesunset.SunriseSunsetCalculator;
 import com.luckycatlabs.sunrisesunset.dto.Location;
 
 import java.lang.ref.WeakReference;
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
@@ -80,27 +81,28 @@ public class MyWatchFace extends CanvasWatchFaceService {
 
         Paint mBackgroundPaint;
         Paint mTimePaint;
-        Paint mSunsetTimePaint;
+        Paint mTimeAmPmPaint;
+        Paint mSecondaryTextPaint;
 
         boolean mAmbient;
 
         Time mTime;
 
         float mTimeX, mTimeY;
+        float mTimeAmPmX, mTimeAmPmY;
         float mTextX, mTextY;
-        float mDialRadius;
         float mSunRadius;
-        float mMoonRadius;
         float[] colorOffset;
         int[] colorGradient;
         Paint mDialPaint;
         Paint mSunPaint;
-        Paint mMoonPaint;
+        Paint mSunGlowPaint;
         RectF mDialRectF;
         RectF mSunRectF;
-        RectF mMoonRectF;
+        RectF mSunGlowRectF;
         int mTextSize = 25;
         float SCALING_FACTOR = 0.90f;
+        float centerX, centerY;
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
          * disable anti-aliasing in ambient mode.
@@ -122,34 +124,35 @@ public class MyWatchFace extends CanvasWatchFaceService {
             mBackgroundPaint = new Paint();
             mBackgroundPaint.setColor(resources.getColor(R.color.digital_background));
 
-            Typeface font = Typeface.createFromAsset(getAssets(),"fonts/quicksand.ttf");
+            Typeface font = Typeface.createFromAsset(getAssets(), "fonts/JosefinSansLight.ttf");
             mTimePaint = new Paint();
             mTimePaint = createTextPaint(resources.getColor(R.color.digital_text));
             mTimePaint.setTypeface(font);
+            mTimePaint.setFlags(Paint.ANTI_ALIAS_FLAG);
+            mTimeAmPmPaint = new Paint();
+            mTimeAmPmPaint = createTextPaint(resources.getColor(R.color.digital_text));
+            mTimeAmPmPaint.setTypeface(font);
+            mTimeAmPmPaint.setFlags(Paint.ANTI_ALIAS_FLAG);
             mTime = new Time();
 
-            mSunsetTimePaint = new Paint();
-            mSunsetTimePaint = createTextPaint(resources.getColor(R.color.digital_text));
-            mSunsetTimePaint.setTextSize(mTextSize);
-            mSunsetTimePaint.setTypeface(font);
+            mSecondaryTextPaint = new Paint();
+            mSecondaryTextPaint = createTextPaint(resources.getColor(R.color.digital_text));
+            mSecondaryTextPaint.setTextSize(mTextSize);
+            mSecondaryTextPaint.setTypeface(font);
 
-            colorOffset = new float[]{0, 0.20f, 0.25f, 0.36f, 0.50f, 0.87f, 1f};
+            colorOffset = new float[]{0.062f, 0.16f, 0.25f, 0.38f, 0.437f, 0.562f, 0.75f, 0.937f, 1f};
             colorGradient = getResources().getIntArray(R.array.day_colors);
             mDialPaint = new Paint();
             mDialPaint.setStyle(Paint.Style.STROKE);
+            mDialPaint.setStrokeJoin(Paint.Join.ROUND);
+            mDialPaint.setStrokeCap(Paint.Cap.ROUND);
             mDialPaint.setFlags(Paint.ANTI_ALIAS_FLAG);
-            mDialPaint.setStrokeWidth(3);
+            mDialPaint.setStrokeWidth(1.5f);
             mSunPaint = new Paint();
-            mSunPaint.setStyle(Paint.Style.STROKE);
+            mSunPaint.setStyle(Paint.Style.FILL);
             mSunPaint.setFlags(Paint.ANTI_ALIAS_FLAG);
-            mSunPaint.setStrokeWidth(3);
-            mSunPaint.setColor(getResources().getColor(R.color.sun_color));
-            mMoonPaint = new Paint();
-            mMoonPaint.setStyle(Paint.Style.STROKE);
-            mMoonPaint.setFlags(Paint.ANTI_ALIAS_FLAG);
-            mMoonPaint.setStrokeWidth(3);
-            mMoonPaint.setColor(getResources().getColor(R.color.moon_color));
-
+            mSunGlowPaint = new Paint();
+            mSunGlowPaint.set(mSunPaint);
         }
 
         @Override
@@ -162,7 +165,7 @@ public class MyWatchFace extends CanvasWatchFaceService {
             Paint paint = new Paint();
             paint.setColor(textColor);
             paint.setTypeface(NORMAL_TYPEFACE);
-            paint.setAntiAlias(true);
+            paint.setFlags(Paint.ANTI_ALIAS_FLAG);
             return paint;
         }
 
@@ -211,10 +214,11 @@ public class MyWatchFace extends CanvasWatchFaceService {
             boolean isRound = insets.isRound();
             mTimeX = resources.getDimension(isRound
                     ? R.dimen.digital_x_offset_round : R.dimen.digital_x_offset);
-            float textSize = resources.getDimension(isRound
-                    ? R.dimen.digital_text_size_round : R.dimen.digital_text_size);
-
-            mTimePaint.setTextSize(textSize);
+            float timeTextSize = resources.getDimension(isRound
+                    ? R.dimen.digital_time_size_round : R.dimen.digital_time_size);
+            mTimePaint.setTextSize(timeTextSize);
+            float timeAmPmTextSize = resources.getDimension(isRound ? R.dimen.digital_time_am_pm_size_round : R.dimen.digital_time_am_pm_size);
+            mTimeAmPmPaint.setTextSize(timeAmPmTextSize);
         }
 
         @Override
@@ -235,7 +239,13 @@ public class MyWatchFace extends CanvasWatchFaceService {
             if (mAmbient != inAmbientMode) {
                 mAmbient = inAmbientMode;
                 if (mLowBitAmbient) {
-                    mTimePaint.setAntiAlias(!inAmbientMode);
+                    mDialPaint.setAntiAlias(!inAmbientMode);
+                    mDialPaint.setColor(getResources().getColor(R.color.white));
+                    mDialPaint.setShader(null);
+                }
+                if (!inAmbientMode){
+                    Shader shader = new SweepGradient(centerX ,centerY, colorGradient, colorOffset);
+                    mDialPaint.setShader(shader);
                 }
                 invalidate();
             }
@@ -249,33 +259,33 @@ public class MyWatchFace extends CanvasWatchFaceService {
         public void onDraw(Canvas canvas, Rect bounds) {
             // Draw the background.
             canvas.drawRect(0, 0, bounds.width(), bounds.height(), mBackgroundPaint);
-
-            String time;
-            time = mTime.hour > 12 ? String.format("%d:%02d pm", mTime.hour - 12, mTime.minute) : String.format("%d:%02d am", mTime.hour, mTime.minute);
+            Calendar calendar = Calendar.getInstance();
+            mTime.setToNow();
+//            String time = String.format("%02d:%02d", mTime.hour >= 12 ? mTime.hour - 12 : mTime.hour, mTime.minute);
+            String time = new SimpleDateFormat("hh:mm a").format(calendar.getTime());
+            String timeAmPm = mTime.hour >= 12 ? "PM" : "AM";
 
             // Draw the dial.
             if (mDialRectF == null)
-            setDimensions(bounds.height(), bounds.width(), time);
+            setDimensions(bounds.height(), bounds.width(), time, timeAmPm);
             canvas.drawArc(mDialRectF, 0, 360, true, mDialPaint);
 
-            // Draw H:MM in ambient mode or H:MM:SS in interactive mode.
-            mTime.setToNow();
-
-            canvas.drawText(time, mTimeX, mTimeY, mTimePaint);
+            canvas.drawText(time, 0, time.length() - 2, mTimeX, mTimeY, mTimePaint);
+            canvas.drawText(time, time.length() - 2, time.length(), mTimeAmPmX, mTimeAmPmY, mTimeAmPmPaint);
+//            canvas.drawText(time, mTimeAmPmX, mTimeAmPmY, mTimeAmPmPaint);
 
             // Draw sunset time
-            canvas.drawText(getSunsetText(), mTextX, mTextY, mSunsetTimePaint);
+            canvas.drawText(getSunsetText(), mTextX, mTextY, mSecondaryTextPaint);
+            if (mTime.hour > 5 && mTime.hour < 19) {
+                mSunPaint.setColor(getResources().getColor(R.color.sun_color));
+                mSunGlowPaint.setColor(getResources().getColor(R.color.sun_glow_color));
+            }
+            else {
+                mSunPaint.setColor(getResources().getColor(R.color.moon_color));
+                mSunGlowPaint.setColor(getResources().getColor(R.color.moon_glow_color));
+            }
             canvas.drawArc(mSunRectF, 0, 360, true, mSunPaint);
-            canvas.drawArc(mMoonRectF, 0, 360, true, mMoonPaint);
-
-            //Draw Sunset ticks
-//            for (int tickIndex = 0; tickIndex < 12; tickIndex++) {
-//                float tickRot = (float) (tickIndex * Math.PI * 2 / 12);
-//                float outerX = (float) Math.sin(tickRot) * mDialRadius;
-//                float outerY = (float) -Math.cos(tickRot) * mDialRadius;
-//                mSunRectF = new RectF(outerX - mSunRadius, outerY - mSunRadius, outerX + mSunRadius, outerY + mSunRadius);
-//                canvas.drawArc(mSunRectF, 0, 360, true, mSunPaint);
-//            }
+            canvas.drawArc(mSunGlowRectF, 0, 360, true, mSunGlowPaint);
 
         }
 
@@ -311,77 +321,47 @@ public class MyWatchFace extends CanvasWatchFaceService {
             }
         }
 
-        private void setDimensions(int height, int width, String time) {
-            float mDialRadius, centerX, centerY;
+        private void setDimensions(int height, int width, String time, String timeAmPm) {
+            float mDialRadius;
             mDialRadius = height >= width ? width * SCALING_FACTOR / 2 : height * SCALING_FACTOR / 2;
             mSunRadius = mDialRadius * 0.05f;
-            mMoonRadius = mDialRadius * 0.05f;
             centerX = width / 2;
             centerY = height / 2;
+
             Shader shader = new SweepGradient(centerX,centerY, colorGradient, colorOffset);
             mDialPaint.setShader(shader);
             mDialRectF =  new RectF(centerX - mDialRadius, centerY - mDialRadius, centerX + mDialRadius, centerY + mDialRadius);
+
+            // Time's position
             Rect timeBounds = new Rect();
-            mTimePaint.getTextBounds(time, 0, time.length(), timeBounds);
-            mTimeX = centerX - (timeBounds.width() / 2);
+            mTimePaint.getTextBounds(time, 0, time.length() - 2, timeBounds);
+            Rect timeAmPmBounds = new Rect();
+            mTimeAmPmPaint.getTextBounds(time, time.length() - 2, time.length(), timeAmPmBounds);
+            mTimeX = centerX - (timeBounds.width()  / 2) - (timeAmPmBounds.width() / 2);
             mTimeY = centerY + (timeBounds.height() / 2);
+            mTimeAmPmX = mTimeX + timeBounds.width() + getResources().getDimension(R.dimen.digital_time_offset);
+            mTimeAmPmY = mTimeY;
+
+            //Secondary Text Position
             Rect sunsetBounds = new Rect();
-            mSunsetTimePaint.getTextBounds(getSunsetText(), 0, getSunsetText().length(), sunsetBounds);
+            mSecondaryTextPaint.getTextBounds(getSunsetText(), 0, getSunsetText().length(), sunsetBounds);
             mTextX = centerX - (sunsetBounds.width() / 2);
             mTextY = centerY + timeBounds.height() + sunsetBounds.height();
 
-            float outerX = centerX + (float) Math.sin(2) * mDialRadius;
-            float outerY = centerY + (float) -Math.cos(2) * mDialRadius;
-            mSunRectF = new RectF(outerX - mSunRadius, outerY - mSunRadius, outerX + mSunRadius, outerY + mSunRadius);
+            //Sun's Position
+            float outerX = centerX + (float) Math.sin(2 * Math.PI * ((Calendar.getInstance().get(Calendar.HOUR_OF_DAY) + Calendar.getInstance().get(Calendar.MINUTE)*0.016 + 12) / 24.0)) * mDialRadius;
+            float outerY = centerY + (float) ( -1 * Math.cos(2 * Math.PI * ((Calendar.getInstance().get(Calendar.HOUR_OF_DAY) + Calendar.getInstance().get(Calendar.MINUTE)*0.016 + 12) / 24.0)) * mDialRadius);
 
-            outerX = centerX - (float) Math.sin(2) * mDialRadius;
-            outerY = centerY - (float) -Math.cos(2) * mDialRadius;
-            mMoonRectF = new RectF(outerX - mMoonRadius, outerY - mMoonRadius, outerX + mMoonRadius, outerY + mMoonRadius);
+            mSunRectF = new RectF(outerX - mSunRadius, outerY - mSunRadius, outerX + mSunRadius, outerY + mSunRadius);
+            mSunGlowRectF = new RectF(outerX - mSunRadius - 5, outerY - mSunRadius - 5, outerX + mSunRadius + 5, outerY + mSunRadius + 5);
 
         }
-
-//        private void setDimensions(int height, int width, String time) {
-//            int mDialRadius, top, bottom, right, left;
-//            int offsetX = 10;
-//            int offsetY = 30;
-//            Rect textBounds = new Rect();
-//            mSunsetTimePaint.measureText("Hello");
-//            mSunsetTimePaint.getTextBounds(getSunsetText(), 0, getSunsetText().length(),textBounds);
-//            int dialHeight = height - textBounds.height();
-//            if (dialHeight >= width) {
-//                Log.d("qwerty","yo");
-//                offsetY += (dialHeight - width) / 2;
-//                mDialRadius = (width - offsetX * 2) / 2;
-//                top = offsetY;
-//                bottom = (mDialRadius * 2) + offsetY;
-//                right = mDialRadius * 2;
-//                left = offsetX;
-//            } else {
-//                Log.d("qwerty","noooo");
-//                mDialRadius = (dialHeight - offsetY * 2) / 2;
-//                offsetX += (width - mDialRadius * 2) / 2;
-//                top = offsetY;
-//                bottom = offsetY + mDialRadius * 2;
-//                right = offsetX + (mDialRadius * 2);
-//                left = offsetX;
-//            }
-//
-//            Shader shader = new SweepGradient(offsetX + mDialRadius, offsetY + mDialRadius, colorGradient, colorOffset);
-//            mDialPaint.setShader(shader);
-//            mDialRectF =  new RectF(left, top, right, bottom);
-//            mTextX = (width - textBounds.width()) / 2;
-//            mTextY = height;
-//            mTimePaint.getTextBounds(time, 0, time.length(), textBounds);
-//            mTimeX = offsetX + mDialRadius - (textBounds.width() / 2);
-//            mTimeY = offsetY + mDialRadius + (textBounds.height() / 2);
-//
-//            Log.d("WatchText", "width:"+width + " TextWidth:" + textBounds.width());
-//        }
 
         public String getSunsetText() {
             Location location = new Location("28.4211", "77.3078");
             SunriseSunsetCalculator calculator = new SunriseSunsetCalculator(location, "India/Haryana");
-            return calculator.getOfficialSunriseForDate(Calendar.getInstance()) + " until sunset";
+//            return calculator.getOfficialSunriseForDate(Calendar.getInstance()) + " until sunset";
+            return "5247 Steps";
         }
     }
 
