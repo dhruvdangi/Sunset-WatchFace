@@ -21,6 +21,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
@@ -60,6 +61,7 @@ public class MyWatchFace extends CanvasWatchFaceService {
      * Handler message id for updating the time periodically in interactive mode.
      */
     private static final int MSG_UPDATE_TIME = 0;
+    private static final float SUN_SCALE_FACTOR = 0.09f;
 
     @Override
     public Engine onCreateEngine() {
@@ -94,6 +96,7 @@ public class MyWatchFace extends CanvasWatchFaceService {
         float mSunRadius;
         float[] colorOffset;
         int[] colorGradient;
+        int mSun;
         Paint mDialPaint;
         Paint mSunPaint;
         Paint mSunGlowPaint;
@@ -119,7 +122,7 @@ public class MyWatchFace extends CanvasWatchFaceService {
                     .setShowSystemUiTime(false)
                     .build());
             Resources resources = MyWatchFace.this.getResources();
-            mTimeY = resources.getDimension(R.dimen.digital_y_offset);
+//            mTimeY = resources.getDimension(R.dimen.digital_y_offset);
 
             mBackgroundPaint = new Paint();
             mBackgroundPaint.setColor(resources.getColor(R.color.digital_background));
@@ -140,7 +143,7 @@ public class MyWatchFace extends CanvasWatchFaceService {
             mSecondaryTextPaint.setTextSize(mTextSize);
             mSecondaryTextPaint.setTypeface(font);
 
-            colorOffset = new float[]{0.062f, 0.16f, 0.25f, 0.38f, 0.437f, 0.562f, 0.75f, 0.937f, 1f};
+            colorOffset = new float[]{0.032f, 0.10f, 0.20f, 0.30f, 0.40f, 0.468f, 0.60f, 0.75f, 0.90f, 1f};
             colorGradient = getResources().getIntArray(R.array.day_colors);
             mDialPaint = new Paint();
             mDialPaint.setStyle(Paint.Style.STROKE);
@@ -260,32 +263,37 @@ public class MyWatchFace extends CanvasWatchFaceService {
             // Draw the background.
             canvas.drawRect(0, 0, bounds.width(), bounds.height(), mBackgroundPaint);
             Calendar calendar = Calendar.getInstance();
-            mTime.setToNow();
-//            String time = String.format("%02d:%02d", mTime.hour >= 12 ? mTime.hour - 12 : mTime.hour, mTime.minute);
-            String time = new SimpleDateFormat("hh:mm a").format(calendar.getTime());
-            String timeAmPm = mTime.hour >= 12 ? "PM" : "AM";
 
+            String time = new SimpleDateFormat("hh:mm a").format(calendar.getTime());
+            String timeAmPm = calendar.get(Calendar.AM_PM) == 0 ? "AM" : "PM";
+            int timeHour = calendar.get(Calendar.HOUR_OF_DAY);
+
+            if (timeHour > 5 && timeHour < 19) {
+                mSun = R.drawable.sun;
+//                mSunPaint.setColor(getResources().getColor(R.color.sun_color));
+//                mSunGlowPaint.setColor(getResources().getColor(R.color.sun_glow_color));
+            }
+            else {
+                mSun = R.drawable.moon;
+//                mSunPaint.setColor(getResources().getColor(R.color.moon_color));
+//                mSunGlowPaint.setColor(getResources().getColor(R.color.moon_glow_color));
+            }
             // Draw the dial.
-            if (mDialRectF == null)
             setDimensions(bounds.height(), bounds.width(), time, timeAmPm);
+            if (mDialPaint.getColor() != getResources().getColor(R.color.white) && mDialPaint.getShader() == null)
+            {
+                Shader shader = new SweepGradient(centerX ,centerY, colorGradient, colorOffset);
+                mDialPaint.setShader(shader);
+            }
             canvas.drawArc(mDialRectF, 0, 360, true, mDialPaint);
 
             canvas.drawText(time, 0, time.length() - 2, mTimeX, mTimeY, mTimePaint);
             canvas.drawText(time, time.length() - 2, time.length(), mTimeAmPmX, mTimeAmPmY, mTimeAmPmPaint);
-//            canvas.drawText(time, mTimeAmPmX, mTimeAmPmY, mTimeAmPmPaint);
 
             // Draw sunset time
             canvas.drawText(getSunsetText(), mTextX, mTextY, mSecondaryTextPaint);
-            if (mTime.hour > 5 && mTime.hour < 19) {
-                mSunPaint.setColor(getResources().getColor(R.color.sun_color));
-                mSunGlowPaint.setColor(getResources().getColor(R.color.sun_glow_color));
-            }
-            else {
-                mSunPaint.setColor(getResources().getColor(R.color.moon_color));
-                mSunGlowPaint.setColor(getResources().getColor(R.color.moon_glow_color));
-            }
-            canvas.drawArc(mSunRectF, 0, 360, true, mSunPaint);
-            canvas.drawArc(mSunGlowRectF, 0, 360, true, mSunGlowPaint);
+
+            canvas.drawBitmap(BitmapFactory.decodeResource(getResources(), mSun), new Rect(0, 0, 100, 100), mSunRectF,null);
 
         }
 
@@ -324,12 +332,12 @@ public class MyWatchFace extends CanvasWatchFaceService {
         private void setDimensions(int height, int width, String time, String timeAmPm) {
             float mDialRadius;
             mDialRadius = height >= width ? width * SCALING_FACTOR / 2 : height * SCALING_FACTOR / 2;
-            mSunRadius = mDialRadius * 0.05f;
+            mSunRadius = mDialRadius * SUN_SCALE_FACTOR;
             centerX = width / 2;
             centerY = height / 2;
 
-            Shader shader = new SweepGradient(centerX,centerY, colorGradient, colorOffset);
-            mDialPaint.setShader(shader);
+//            Shader shader = new SweepGradient(centerX,centerY, colorGradient, colorOffset);
+//            mDialPaint.setShader(shader);
             mDialRectF =  new RectF(centerX - mDialRadius, centerY - mDialRadius, centerX + mDialRadius, centerY + mDialRadius);
 
             // Time's position
